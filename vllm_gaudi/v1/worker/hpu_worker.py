@@ -25,6 +25,7 @@ from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.worker.utils import bind_kv_cache
 from vllm_gaudi.utils import is_fake_hpu
 from vllm_gaudi.v1.worker.hpu_model_runner import HPUModelRunner, bool_helper
+from vllm_gaudi.v1.worker.hpu_pooling_model_runner import HPUPoolingModelRunner
 from vllm.v1.worker.worker_base import WorkerBase
 
 from vllm_gaudi.extension.logger import logger as init_logger
@@ -126,7 +127,10 @@ class HPUWorker(WorkerBase):
                                             self.local_rank)
         # Set random seed.
         set_random_seed(self.model_config.seed)
-        self.model_runner = HPUModelRunner(
+        if self.model_config.runner_type == "pooling":
+            self.model_runner = HPUPoolingModelRunner(self.vllm_config)
+        else:
+            self.model_runner = HPUModelRunner(
             vllm_config=self.vllm_config,
             is_driver_worker=self.is_driver_worker)
         self.init_profiler()
@@ -139,6 +143,14 @@ class HPUWorker(WorkerBase):
 
     def load_model(self) -> None:
         self.model_runner.load_model()
+        if isinstance(self.model_runner, HPUPoolingModelRunner):
+            # recipes we will use the extra memory for graphs/blocks
+            free_hpu_memory = torch.hpu.mem_get_info()[0]
+            hpu_memory_margin = free_hpu_memory * (
+                1 - self.cache_config.gpu_memory_utilization)
+            self.model_runner.mem_margin = hpu_memory_margin
+            self._warm_up_model()
+        
 
     @torch.inference_mode()
     def determine_available_memory(self) -> int:
@@ -232,12 +244,12 @@ class HPUWorker(WorkerBase):
         with HabanaMemoryProfiler() as m:
             self.model_runner.initialize_kv_cache(kv_cache_config)
             torch.hpu.synchronize()
-        msg = (f"Usable num_blocks: {kv_cache_config.num_blocks}, "
-               f"actual allocated num_blocks: "
-               f"{self.model_runner.kv_caches[0][0].shape[0]} "
-               f"(_PAD_BLOCK_ID={self.model_runner._PAD_BLOCK_ID}, "
-               f"_PAD_SLOT_ID={self.model_runner._PAD_SLOT_ID})")
-        logger.info(msg)
+        # msg = (f"Usable num_blocks: {kv_cache_config.num_blocks}, "
+        #        f"actual allocated num_blocks: "
+        #        f"{self.model_runner.kv_caches[0][0].shape[0]} "
+        #        f"(_PAD_BLOCK_ID={self.model_runner._PAD_BLOCK_ID}, "
+        #        f"_PAD_SLOT_ID={self.model_runner._PAD_SLOT_ID})")
+        # logger.info(msg)
         msg = ("Initializing cache engine "
                f"took {m.get_summary_string()}")
         logger.info(msg)
