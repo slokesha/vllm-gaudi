@@ -149,7 +149,7 @@ class HPUWorker(WorkerBase):
             hpu_memory_margin = free_hpu_memory * (
                 1 - self.cache_config.gpu_memory_utilization)
             self.model_runner.mem_margin = hpu_memory_margin
-            self._warm_up_model()
+            # self._warm_up_model()
         
 
     @torch.inference_mode()

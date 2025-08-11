@@ -2838,8 +2838,8 @@ class HPUModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             with HabanaMemoryProfiler() as m_wrap:
                 self.model = self._maybe_wrap_in_hpu_graph(
                     self.model,
-                    vllm_config=self.vllm_config,
-                    layer_names=path_to_rope)
+                    vllm_config=self.vllm_config)
+                    # layer_names=path_to_rope)
             msg = f"Wrapping in HPU Graph took {m_wrap.get_summary_string()}"
             logger.info(msg)
 
