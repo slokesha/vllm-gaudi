@@ -2,7 +2,6 @@ import os
 
 from vllm import LLM, SamplingParams
 
-def main():
     os.environ["VLLM_SKIP_WARMUP"] = "true"
     prompts = [
         "Hello, my name is",
@@ -28,6 +27,3 @@ def main():
         prompt = output.prompt
         generated_text = output.outputs[0].text
         print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
-
-if __name__ == "__main__":
-    main()
